@@ -3,7 +3,7 @@ import axios from 'axios';
 // Update this to your backend URL
 const API_BASE_URL = import.meta.env.DEV 
   ? 'http://localhost:3000' 
-  : 'https://api.codex-couples.com';
+  : 'https://backend.distang.com';
 
 const api = axios.create({
   baseURL: API_BASE_URL,

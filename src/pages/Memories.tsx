@@ -16,7 +16,7 @@ interface Memory {
 
 const API_BASE_URL = import.meta.env.DEV 
   ? 'http://localhost:8000' 
-  : 'https://api.codex-couples.com';
+  : 'https://backend.distang.com';
 
 export default function Memories() {
   const [memories, setMemories] = useState<Memory[]>([]);
