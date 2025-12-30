@@ -90,6 +90,10 @@ export const adminApi = {
   // Export
   exportData: (type: 'users' | 'couples' | 'messages' | 'memories') => 
     api.get('/admin/export', { params: { type } }),
+
+  // API Logs
+  getApiLogs: (limit = 100) =>
+    api.get('/admin/logs', { params: { limit } }),
 };
 
 export default api;

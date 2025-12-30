@@ -6,6 +6,7 @@ import Users from './pages/Users';
 import Couples from './pages/Couples';
 import Memories from './pages/Memories';
 import Messages from './pages/Messages';
+import ApiLogs from './pages/ApiLogs';
 import System from './pages/System';
 import Layout from './components/Layout';
 
@@ -48,6 +49,7 @@ function App() {
         <Route path="/couples" element={<Couples />} />
         <Route path="/memories" element={<Memories />} />
         <Route path="/messages" element={<Messages />} />
+        <Route path="/api-logs" element={<ApiLogs />} />
         <Route path="/system" element={<System />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
