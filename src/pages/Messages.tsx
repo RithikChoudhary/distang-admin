@@ -1,171 +1,294 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { adminApi } from '../services/api';
 import { format } from 'date-fns';
 
 interface Message {
   _id: string;
-  coupleId: string;
   senderId: {
     _id: string;
     name: string;
     email: string;
+    profilePhoto?: string;
   };
-  message: string;
-  messageType: string;
+  coupleId: string;
+  type: 'text' | 'image' | 'voice';
+  content?: string;
+  imageUrl?: string;
+  voiceUrl?: string;
+  duration?: number;
   createdAt: string;
 }
 
 export default function Messages() {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, pages: 0 });
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [coupleFilter, setCoupleFilter] = useState('');
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [stats, setStats] = useState({
+    total: 0,
+    text: 0,
+    image: 0,
+    voice: 0,
+  });
 
   useEffect(() => {
     loadMessages();
-  }, [page, coupleFilter]);
+  }, [pagination.page, typeFilter]);
+
+  useEffect(() => {
+    const debounce = setTimeout(() => {
+      if (pagination.page === 1) {
+        loadMessages();
+      } else {
+        setPagination(p => ({ ...p, page: 1 }));
+      }
+    }, 300);
+    return () => clearTimeout(debounce);
+  }, [search]);
 
   const loadMessages = async () => {
-    setLoading(true);
     try {
-      const response = await adminApi.getMessages(page, 50, coupleFilter);
-      setMessages(response.data.data.messages || []);
-      setTotalPages(response.data.data.pagination?.pages || 1);
+      setLoading(true);
+      const res = await adminApi.getMessages({
+        page: pagination.page,
+        limit: pagination.limit,
+        search,
+        type: typeFilter,
+      });
+      setMessages(res.data.data.messages);
+      setPagination(res.data.data.pagination);
+      
+      // Calculate stats from first load
+      if (!typeFilter && !search) {
+        setStats({
+          total: res.data.data.pagination.total,
+          text: 0,
+          image: 0,
+          voice: 0,
+        });
+      }
     } catch (error) {
       console.error('Failed to load messages:', error);
-      setMessages([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (messageId: string) => {
-    if (!window.confirm('Are you sure you want to delete this message?')) {
-      return;
-    }
-
+  const deleteMessage = async (messageId: string) => {
+    if (!confirm('Are you sure you want to delete this message?')) return;
+    
     try {
       await adminApi.deleteMessage(messageId);
-      setMessages(messages.filter((m) => m._id !== messageId));
+      loadMessages();
     } catch (error) {
       console.error('Failed to delete message:', error);
-      alert('Failed to delete message');
     }
   };
 
-  const getMessagePreview = (message: Message) => {
-    if (message.messageType === 'image') return '📷 Image';
-    if (message.messageType === 'voice') return '🎤 Voice message';
-    if (message.messageType === 'question') return '❓ Question';
-    return message.message.length > 100 
-      ? message.message.substring(0, 100) + '...' 
-      : message.message;
+  const getMessageIcon = (type: string) => {
+    switch (type) {
+      case 'image':
+        return '📷';
+      case 'voice':
+        return '🎤';
+      default:
+        return '💬';
+    }
+  };
+
+  const getMessageContent = (message: Message) => {
+    switch (message.type) {
+      case 'image':
+        return (
+          <div className="mt-2">
+            <img
+              src={message.imageUrl}
+              alt="Message image"
+              className="max-w-xs rounded-lg"
+            />
+          </div>
+        );
+      case 'voice':
+        return (
+          <div className="mt-2 flex items-center gap-2 text-violet-400">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+            </svg>
+            <span className="text-sm">{message.duration || 0}s voice message</span>
+          </div>
+        );
+      default:
+        return (
+          <p className="text-gray-300 mt-1">{message.content}</p>
+        );
+    }
   };
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-8">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Messages</h1>
-          <p className="text-gray-500">View chat messages between couples</p>
+          <h1 className="text-3xl font-bold text-white">Messages</h1>
+          <p className="text-gray-400 mt-1">Monitor all conversations across the platform</p>
         </div>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <p className="text-2xl font-bold text-white">{pagination.total.toLocaleString()}</p>
+            <p className="text-gray-400 text-sm">Total Messages</p>
+          </div>
+        </div>
+      </div>
 
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div 
+          className={`bg-gray-800/50 rounded-xl p-4 border cursor-pointer transition-colors ${!typeFilter ? 'border-violet-500' : 'border-gray-700 hover:border-gray-600'}`}
+          onClick={() => setTypeFilter('')}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-400 text-sm">All Messages</p>
+              <p className="text-2xl font-bold text-white">{pagination.total.toLocaleString()}</p>
+            </div>
+            <span className="text-3xl">📨</span>
+          </div>
+        </div>
+        <div 
+          className={`bg-gray-800/50 rounded-xl p-4 border cursor-pointer transition-colors ${typeFilter === 'text' ? 'border-blue-500' : 'border-gray-700 hover:border-gray-600'}`}
+          onClick={() => setTypeFilter('text')}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-400 text-sm">Text</p>
+              <p className="text-2xl font-bold text-blue-400">💬</p>
+            </div>
+            <span className="text-3xl opacity-50">💬</span>
+          </div>
+        </div>
+        <div 
+          className={`bg-gray-800/50 rounded-xl p-4 border cursor-pointer transition-colors ${typeFilter === 'image' ? 'border-pink-500' : 'border-gray-700 hover:border-gray-600'}`}
+          onClick={() => setTypeFilter('image')}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-400 text-sm">Images</p>
+              <p className="text-2xl font-bold text-pink-400">📷</p>
+            </div>
+            <span className="text-3xl opacity-50">📷</span>
+          </div>
+        </div>
+        <div 
+          className={`bg-gray-800/50 rounded-xl p-4 border cursor-pointer transition-colors ${typeFilter === 'voice' ? 'border-emerald-500' : 'border-gray-700 hover:border-gray-600'}`}
+          onClick={() => setTypeFilter('voice')}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-400 text-sm">Voice</p>
+              <p className="text-2xl font-bold text-emerald-400">🎤</p>
+            </div>
+            <span className="text-3xl opacity-50">🎤</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative max-w-md">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
         <input
           type="text"
-          value={coupleFilter}
-          onChange={(e) => setCoupleFilter(e.target.value)}
-          placeholder="Filter by Couple ID..."
-          className="px-4 py-2 border rounded-lg w-64 focus:ring-2 focus:ring-primary-400 focus:border-transparent outline-none"
+          placeholder="Search message content..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full bg-gray-800 text-white pl-10 pr-4 py-3 rounded-lg border border-gray-700 focus:border-violet-500 focus:outline-none"
         />
       </div>
 
-      {/* Messages Table */}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">Sender</th>
-              <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">Message</th>
-              <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">Type</th>
-              <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">Date</th>
-              <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {loading ? (
-              <tr>
-                <td colSpan={5} className="px-6 py-12 text-center">
-                  <div className="spinner mx-auto" />
-                </td>
-              </tr>
-            ) : messages.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
-                  No messages found
-                </td>
-              </tr>
-            ) : (
-              messages.map((msg) => (
-                <tr key={msg._id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div>
-                      <p className="font-medium text-gray-800">
-                        {msg.senderId?.name || 'Unknown'}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {msg.senderId?.email || '-'}
-                      </p>
+      {/* Messages List */}
+      <div className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden">
+        <div className="divide-y divide-gray-700">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-violet-500 border-t-transparent"></div>
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              No messages found
+            </div>
+          ) : (
+            messages.map((message) => (
+              <div key={message._id} className="p-4 hover:bg-gray-700/30 transition-colors">
+                <div className="flex items-start gap-4">
+                  {/* Sender Avatar */}
+                  <div className="flex-shrink-0">
+                    {message.senderId?.profilePhoto ? (
+                      <img
+                        src={message.senderId.profilePhoto}
+                        alt={message.senderId.name}
+                        className="w-10 h-10 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-white font-medium">
+                        {message.senderId?.name?.charAt(0) || '?'}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Message Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-white font-medium">{message.senderId?.name || 'Unknown'}</span>
+                      <span className="text-xl">{getMessageIcon(message.type)}</span>
+                      <span className="text-gray-500 text-sm">
+                        {format(new Date(message.createdAt), 'MMM d, yyyy h:mm a')}
+                      </span>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 text-gray-600 max-w-md">
-                    <p className="truncate">{getMessagePreview(msg)}</p>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      msg.messageType === 'text' ? 'bg-gray-100 text-gray-700' :
-                      msg.messageType === 'image' ? 'bg-purple-100 text-purple-700' :
-                      msg.messageType === 'voice' ? 'bg-blue-100 text-blue-700' :
-                      'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {msg.messageType}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-gray-600 text-sm">
-                    {format(new Date(msg.createdAt), 'MMM d, HH:mm')}
-                  </td>
-                  <td className="px-6 py-4">
+                    {getMessageContent(message)}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex-shrink-0">
                     <button
-                      onClick={() => handleDelete(msg._id)}
-                      className="px-3 py-1 text-sm bg-red-50 text-red-600 rounded hover:bg-red-100 transition"
+                      onClick={() => deleteMessage(message._id)}
+                      className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
+                      title="Delete message"
                     >
-                      Delete
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
                     </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="px-6 py-4 border-t flex items-center justify-between">
-            <p className="text-sm text-gray-500">
-              Page {page} of {totalPages}
+        {pagination.pages > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-700">
+            <p className="text-gray-400 text-sm">
+              Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
+              {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
             </p>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50"
+                onClick={() => setPagination(p => ({ ...p, page: p.page - 1 }))}
+                disabled={pagination.page === 1}
+                className="px-4 py-2 bg-gray-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-600 transition-colors"
               >
                 Previous
               </button>
+              <span className="text-gray-400">
+                Page {pagination.page} of {pagination.pages}
+              </span>
               <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="px-3 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-50"
+                onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))}
+                disabled={pagination.page === pagination.pages}
+                className="px-4 py-2 bg-gray-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-600 transition-colors"
               >
                 Next
               </button>
@@ -176,4 +299,3 @@ export default function Messages() {
     </div>
   );
 }
-

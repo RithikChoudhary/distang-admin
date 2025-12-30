@@ -31,48 +31,65 @@ api.interceptors.response.use(
   }
 );
 
+export interface PaginationParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
 export const adminApi = {
   // Auth
   login: (email: string, password: string) => 
     api.post('/admin/login', { email, password }),
 
-  // Dashboard
+  // Dashboard & Analytics
   getStats: () => api.get('/admin/stats'),
+  
+  getAnalytics: (days = 30) => 
+    api.get('/admin/analytics', { params: { days } }),
+  
+  getActivityFeed: (limit = 50) => 
+    api.get('/admin/activity', { params: { limit } }),
+  
+  getSystemHealth: () => api.get('/admin/health'),
 
   // Users
-  getUsers: (page = 1, limit = 20, search = '') => 
-    api.get('/admin/users', { params: { page, limit, search } }),
+  getUsers: (params: PaginationParams = {}) => 
+    api.get('/admin/users', { params: { page: 1, limit: 20, ...params } }),
   
   getUser: (id: string) => api.get(`/admin/users/${id}`),
   
-  deleteUser: (id: string) => api.delete(`/admin/users/${id}`),
+  updateUser: (id: string, data: { isBanned?: boolean; isVerified?: boolean; note?: string }) => 
+    api.put(`/admin/users/${id}`, data),
   
-  updateUser: (id: string, data: any) => 
-    api.patch(`/admin/users/${id}`, data),
+  deleteUser: (id: string) => api.delete(`/admin/users/${id}`),
 
   // Couples
-  getCouples: (page = 1, limit = 20) => 
-    api.get('/admin/couples', { params: { page, limit } }),
+  getCouples: (params: PaginationParams = {}) => 
+    api.get('/admin/couples', { params: { page: 1, limit: 20, ...params } }),
+  
+  getCouple: (id: string) => api.get(`/admin/couples/${id}`),
   
   deleteCouple: (id: string) => api.delete(`/admin/couples/${id}`),
 
   // Memories
-  getMemories: (page = 1, limit = 20, coupleId = '') => 
-    api.get('/admin/memories', { params: { page, limit, coupleId } }),
+  getMemories: (params: PaginationParams & { coupleId?: string; type?: string } = {}) => 
+    api.get('/admin/memories', { params: { page: 1, limit: 24, ...params } }),
   
   deleteMemory: (id: string) => api.delete(`/admin/memories/${id}`),
 
   // Messages
-  getMessages: (page = 1, limit = 50, coupleId = '') => 
-    api.get('/admin/messages', { params: { page, limit, coupleId } }),
+  getMessages: (params: PaginationParams & { coupleId?: string; type?: string } = {}) => 
+    api.get('/admin/messages', { params: { page: 1, limit: 50, ...params } }),
   
   deleteMessage: (id: string) => api.delete(`/admin/messages/${id}`),
 
-  // System
-  getHealth: () => api.get('/health'),
-  getLogs: (level = 'error', limit = 100) => 
-    api.get('/admin/logs', { params: { level, limit } }),
+  // Export
+  exportData: (type: 'users' | 'couples' | 'messages' | 'memories') => 
+    api.get('/admin/export', { params: { type } }),
 };
 
 export default api;
-

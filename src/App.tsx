@@ -6,7 +6,7 @@ import Users from './pages/Users';
 import Couples from './pages/Couples';
 import Memories from './pages/Memories';
 import Messages from './pages/Messages';
-import Settings from './pages/Settings';
+import System from './pages/System';
 import Layout from './components/Layout';
 
 function App() {
@@ -27,15 +27,10 @@ function App() {
     setIsAuthenticated(true);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('admin_token');
-    setIsAuthenticated(false);
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="spinner" />
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-violet-500 border-t-transparent"></div>
       </div>
     );
   }
@@ -45,19 +40,19 @@ function App() {
   }
 
   return (
-    <Layout onLogout={handleLogout}>
+    <Layout>
       <Routes>
-        <Route path="/" element={<Dashboard />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/users" element={<Users />} />
         <Route path="/couples" element={<Couples />} />
         <Route path="/memories" element={<Memories />} />
         <Route path="/messages" element={<Messages />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/system" element={<System />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Layout>
   );
 }
 
 export default App;
-
