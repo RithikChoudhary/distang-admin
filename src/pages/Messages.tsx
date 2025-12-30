@@ -11,11 +11,8 @@ interface Message {
     profilePhoto?: string;
   };
   coupleId: string;
-  type: 'text' | 'image' | 'voice';
-  content?: string;
-  imageUrl?: string;
-  voiceUrl?: string;
-  duration?: number;
+  messageType: 'text' | 'image' | 'voice' | 'location';
+  message: string;
   createdAt: string;
 }
 
@@ -93,24 +90,21 @@ export default function Messages() {
     }
   };
 
-  const getMessageIcon = (type: string) => {
-    switch (type) {
+  const getMessageIcon = (messageType: string) => {
+    switch (messageType) {
       case 'image': return '📷';
       case 'voice': return '🎤';
+      case 'location': return '📍';
       default: return '💬';
     }
   };
 
-  const getMessageContent = (message: Message) => {
-    switch (message.type) {
+  const getMessageContent = (msg: Message) => {
+    switch (msg.messageType) {
       case 'image':
         return (
           <div className="mt-2">
-            <img
-              src={message.imageUrl}
-              alt="Message image"
-              className="max-w-xs rounded-lg"
-            />
+            <span className="text-violet-400">📷 Image message</span>
           </div>
         );
       case 'voice':
@@ -119,11 +113,13 @@ export default function Messages() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
             </svg>
-            <span className="text-sm">{message.duration || 0}s voice message</span>
+            <span className="text-sm">Voice message</span>
           </div>
         );
+      case 'location':
+        return <p className="text-gray-300 mt-1">📍 Location shared</p>;
       default:
-        return <p className="text-gray-300 mt-1">{message.content}</p>;
+        return <p className="text-gray-300 mt-1">{msg.message}</p>;
     }
   };
 
@@ -278,7 +274,7 @@ export default function Messages() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-white font-medium">{message.senderId?.name || 'Unknown'}</span>
-                      <span className="text-xl">{getMessageIcon(message.type)}</span>
+                      <span className="text-xl">{getMessageIcon(message.messageType)}</span>
                       <span className="text-gray-500 text-sm">
                         {format(new Date(message.createdAt), 'MMM d, yyyy h:mm a')}
                       </span>
