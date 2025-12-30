@@ -19,22 +19,29 @@ interface Message {
   createdAt: string;
 }
 
+interface Couple {
+  _id: string;
+  partner1: { _id: string; name: string; profilePhoto?: string };
+  partner2: { _id: string; name: string; profilePhoto?: string };
+  messageCount?: number;
+}
+
 export default function Messages() {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [couples, setCouples] = useState<Couple[]>([]);
+  const [selectedCouple, setSelectedCouple] = useState<string>('');
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, pages: 0 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
-  const [stats, setStats] = useState({
-    total: 0,
-    text: 0,
-    image: 0,
-    voice: 0,
-  });
+
+  useEffect(() => {
+    loadCouples();
+  }, []);
 
   useEffect(() => {
     loadMessages();
-  }, [pagination.page, typeFilter]);
+  }, [pagination.page, typeFilter, selectedCouple]);
 
   useEffect(() => {
     const debounce = setTimeout(() => {
@@ -47,6 +54,15 @@ export default function Messages() {
     return () => clearTimeout(debounce);
   }, [search]);
 
+  const loadCouples = async () => {
+    try {
+      const res = await adminApi.getCouples({ limit: 100 });
+      setCouples(res.data.data.couples || []);
+    } catch (error) {
+      console.error('Failed to load couples:', error);
+    }
+  };
+
   const loadMessages = async () => {
     try {
       setLoading(true);
@@ -55,19 +71,10 @@ export default function Messages() {
         limit: pagination.limit,
         search,
         type: typeFilter,
+        coupleId: selectedCouple,
       });
-      setMessages(res.data.data.messages);
+      setMessages(res.data.data.messages || []);
       setPagination(res.data.data.pagination);
-      
-      // Calculate stats from first load
-      if (!typeFilter && !search) {
-        setStats({
-          total: res.data.data.pagination.total,
-          text: 0,
-          image: 0,
-          voice: 0,
-        });
-      }
     } catch (error) {
       console.error('Failed to load messages:', error);
     } finally {
@@ -88,12 +95,9 @@ export default function Messages() {
 
   const getMessageIcon = (type: string) => {
     switch (type) {
-      case 'image':
-        return '📷';
-      case 'voice':
-        return '🎤';
-      default:
-        return '💬';
+      case 'image': return '📷';
+      case 'voice': return '🎤';
+      default: return '💬';
     }
   };
 
@@ -119,10 +123,12 @@ export default function Messages() {
           </div>
         );
       default:
-        return (
-          <p className="text-gray-300 mt-1">{message.content}</p>
-        );
+        return <p className="text-gray-300 mt-1">{message.content}</p>;
     }
+  };
+
+  const getCoupleLabel = (couple: Couple) => {
+    return `${couple.partner1?.name || 'User 1'} & ${couple.partner2?.name || 'User 2'}`;
   };
 
   return (
@@ -131,81 +137,112 @@ export default function Messages() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white">Messages</h1>
-          <p className="text-gray-400 mt-1">Monitor all conversations across the platform</p>
+          <p className="text-gray-400 mt-1">Monitor conversations by couple</p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="text-right">
-            <p className="text-2xl font-bold text-white">{pagination.total.toLocaleString()}</p>
-            <p className="text-gray-400 text-sm">Total Messages</p>
+        <div className="text-right">
+          <p className="text-2xl font-bold text-white">{pagination.total.toLocaleString()}</p>
+          <p className="text-gray-400 text-sm">
+            {selectedCouple ? 'Filtered Messages' : 'Total Messages'}
+          </p>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Couple Selector */}
+        <div>
+          <label className="block text-sm text-gray-400 mb-2">Select Couple</label>
+          <select
+            value={selectedCouple}
+            onChange={(e) => {
+              setSelectedCouple(e.target.value);
+              setPagination(p => ({ ...p, page: 1 }));
+            }}
+            className="w-full bg-gray-800 text-white px-4 py-3 rounded-lg border border-gray-700 focus:border-violet-500 focus:outline-none"
+          >
+            <option value="">All Couples</option>
+            {couples.map(couple => (
+              <option key={couple._id} value={couple._id}>
+                {getCoupleLabel(couple)} ({couple.messageCount || 0} messages)
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Type Filter */}
+        <div>
+          <label className="block text-sm text-gray-400 mb-2">Message Type</label>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="w-full bg-gray-800 text-white px-4 py-3 rounded-lg border border-gray-700 focus:border-violet-500 focus:outline-none"
+          >
+            <option value="">All Types</option>
+            <option value="text">💬 Text</option>
+            <option value="image">📷 Images</option>
+            <option value="voice">🎤 Voice</option>
+          </select>
+        </div>
+
+        {/* Search */}
+        <div>
+          <label className="block text-sm text-gray-400 mb-2">Search Content</label>
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search messages..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-gray-800 text-white pl-10 pr-4 py-3 rounded-lg border border-gray-700 focus:border-violet-500 focus:outline-none"
+            />
           </div>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div 
-          className={`bg-gray-800/50 rounded-xl p-4 border cursor-pointer transition-colors ${!typeFilter ? 'border-violet-500' : 'border-gray-700 hover:border-gray-600'}`}
-          onClick={() => setTypeFilter('')}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-400 text-sm">All Messages</p>
-              <p className="text-2xl font-bold text-white">{pagination.total.toLocaleString()}</p>
-            </div>
-            <span className="text-3xl">📨</span>
-          </div>
+      {/* Selected Couple Info */}
+      {selectedCouple && (
+        <div className="bg-pink-500/10 border border-pink-500/20 rounded-xl p-4">
+          {(() => {
+            const couple = couples.find(c => c._id === selectedCouple);
+            if (!couple) return null;
+            return (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="flex -space-x-2">
+                    {couple.partner1?.profilePhoto ? (
+                      <img src={couple.partner1.profilePhoto} className="w-10 h-10 rounded-full border-2 border-pink-500" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-pink-500 flex items-center justify-center text-white font-bold border-2 border-pink-500">
+                        {couple.partner1?.name?.charAt(0) || '?'}
+                      </div>
+                    )}
+                    {couple.partner2?.profilePhoto ? (
+                      <img src={couple.partner2.profilePhoto} className="w-10 h-10 rounded-full border-2 border-violet-500" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-violet-500 flex items-center justify-center text-white font-bold border-2 border-violet-500">
+                        {couple.partner2?.name?.charAt(0) || '?'}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-white font-medium">{getCoupleLabel(couple)}</p>
+                    <p className="text-gray-400 text-sm">{couple.messageCount || 0} total messages</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedCouple('')}
+                  className="text-gray-400 hover:text-white"
+                >
+                  Clear filter
+                </button>
+              </div>
+            );
+          })()}
         </div>
-        <div 
-          className={`bg-gray-800/50 rounded-xl p-4 border cursor-pointer transition-colors ${typeFilter === 'text' ? 'border-blue-500' : 'border-gray-700 hover:border-gray-600'}`}
-          onClick={() => setTypeFilter('text')}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-400 text-sm">Text</p>
-              <p className="text-2xl font-bold text-blue-400">💬</p>
-            </div>
-            <span className="text-3xl opacity-50">💬</span>
-          </div>
-        </div>
-        <div 
-          className={`bg-gray-800/50 rounded-xl p-4 border cursor-pointer transition-colors ${typeFilter === 'image' ? 'border-pink-500' : 'border-gray-700 hover:border-gray-600'}`}
-          onClick={() => setTypeFilter('image')}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-400 text-sm">Images</p>
-              <p className="text-2xl font-bold text-pink-400">📷</p>
-            </div>
-            <span className="text-3xl opacity-50">📷</span>
-          </div>
-        </div>
-        <div 
-          className={`bg-gray-800/50 rounded-xl p-4 border cursor-pointer transition-colors ${typeFilter === 'voice' ? 'border-emerald-500' : 'border-gray-700 hover:border-gray-600'}`}
-          onClick={() => setTypeFilter('voice')}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-400 text-sm">Voice</p>
-              <p className="text-2xl font-bold text-emerald-400">🎤</p>
-            </div>
-            <span className="text-3xl opacity-50">🎤</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Search */}
-      <div className="relative max-w-md">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-        <input
-          type="text"
-          placeholder="Search message content..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-gray-800 text-white pl-10 pr-4 py-3 rounded-lg border border-gray-700 focus:border-violet-500 focus:outline-none"
-        />
-      </div>
+      )}
 
       {/* Messages List */}
       <div className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden">
@@ -216,7 +253,7 @@ export default function Messages() {
             </div>
           ) : messages.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
-              No messages found
+              {selectedCouple ? 'No messages for this couple' : 'No messages found'}
             </div>
           ) : (
             messages.map((message) => (

@@ -72,6 +72,7 @@ export default function Dashboard() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState(30);
 
   useEffect(() => {
@@ -80,16 +81,28 @@ export default function Dashboard() {
 
   const loadData = async () => {
     try {
-      const [statsRes, analyticsRes, activityRes] = await Promise.all([
-        adminApi.getStats(),
-        adminApi.getAnalytics(timeRange),
-        adminApi.getActivityFeed(20),
-      ]);
+      setError(null);
+      setLoading(true);
+      
+      // Load stats first (most important)
+      const statsRes = await adminApi.getStats();
       setStats(statsRes.data.data);
-      setAnalytics(analyticsRes.data.data);
-      setActivities(activityRes.data.data);
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error);
+      
+      // Then load analytics and activity (these might fail on new deployments)
+      try {
+        const [analyticsRes, activityRes] = await Promise.all([
+          adminApi.getAnalytics(timeRange),
+          adminApi.getActivityFeed(20),
+        ]);
+        setAnalytics(analyticsRes.data.data);
+        setActivities(activityRes.data.data || []);
+      } catch (analyticsError) {
+        console.warn('Analytics/Activity not available yet:', analyticsError);
+        // These are optional, don't fail the whole dashboard
+      }
+    } catch (err: any) {
+      console.error('Failed to load dashboard data:', err);
+      setError(err.response?.data?.message || err.message || 'Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -124,6 +137,20 @@ export default function Dashboard() {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-violet-500 border-t-transparent"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+        <div className="text-red-400 text-lg mb-4">⚠️ {error}</div>
+        <button
+          onClick={loadData}
+          className="bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-lg"
+        >
+          Retry
+        </button>
       </div>
     );
   }
