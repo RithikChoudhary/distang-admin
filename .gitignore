@@ -72,7 +72,7 @@ backend/uploads/voice/*
 # TypeScript
 *.tsbuildinfo
 
-# Package locks (optional - uncomment if you want to ignore)
-# package-lock.json
-# yarn.lock
+# Package locks
+package-lock.json
+yarn.lock
 
